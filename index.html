@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Tolerance stack calculator for worst-case and RSS analysis.">
+  <title>Tolerance Stack Calculator</title>
+  <style>
+    :root { --bg:#f4f7fb; --panel:#fff; --ink:#172033; --muted:#667085; --line:#d9e1ec; --brand:#2563eb; --brand-dark:#1d4ed8; --soft:#eff6ff; --good:#087443; --warn:#b54708; --danger:#b42318; --shadow:0 12px 35px rgba(28,45,75,.08); }
+    * { box-sizing:border-box; }
+    body { margin:0; min-height:100vh; font:15px/1.45 Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif; color:var(--ink); background:linear-gradient(135deg,#f8fbff 0%,var(--bg) 55%,#eef3fa 100%); }
+    .shell { max-width:1180px; margin:0 auto; padding:34px 20px 54px; }
+    header { display:flex; align-items:flex-start; justify-content:space-between; gap:24px; margin-bottom:28px; }
+    h1 { margin:0 0 7px; font-size:clamp(27px,4vw,40px); letter-spacing:-.04em; }
+    h2 { margin:0; font-size:19px; letter-spacing:-.02em; }
+    p { margin:0; color:var(--muted); }
+    .eyebrow { color:var(--brand); font-weight:800; text-transform:uppercase; letter-spacing:.12em; font-size:11px; margin-bottom:7px; }
+    .actions { display:flex; gap:10px; flex-wrap:wrap; justify-content:flex-end; }
+    button { border:0; border-radius:9px; padding:10px 14px; cursor:pointer; font:inherit; font-weight:700; transition:.15s ease; }
+    button:hover { transform:translateY(-1px); } .primary { color:#fff; background:var(--brand); box-shadow:0 5px 12px #2563eb2b; } .primary:hover { background:var(--brand-dark); } .secondary { color:var(--brand-dark); background:#dbeafe; } .ghost { color:var(--muted); background:transparent; border:1px solid var(--line); }
+    .layout { display:grid; grid-template-columns:minmax(0,1.55fr) minmax(320px,.85fr); gap:20px; align-items:start; }
+    .card { background:var(--panel); border:1px solid #e5eaf2; border-radius:16px; box-shadow:var(--shadow); padding:22px; }
+    .card-head { display:flex; align-items:center; justify-content:space-between; gap:15px; margin-bottom:18px; } .card-head p { font-size:13px; margin-top:3px; }
+    .table-wrap { overflow:auto; border:1px solid var(--line); border-radius:11px; }
+    table { width:100%; border-collapse:collapse; min-width:650px; } th { background:#f8fafc; color:var(--muted); font-size:11px; letter-spacing:.07em; text-transform:uppercase; text-align:left; padding:11px 12px; white-space:nowrap; } td { border-top:1px solid var(--line); padding:9px 8px; } td:first-child, th:first-child { padding-left:12px; } td:last-child, th:last-child { padding-right:12px; }
+    input, select { width:100%; border:1px solid var(--line); border-radius:7px; padding:9px 10px; color:var(--ink); background:#fff; font:inherit; } input:focus, select:focus { outline:3px solid #bfdbfe; border-color:var(--brand); } input[type=number] { min-width:105px; } .remove { color:var(--danger); background:#fff1f2; padding:7px 10px; font-size:13px; }
+    .hint { font-size:12px; color:var(--muted); margin-top:12px; }
+    .settings { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-top:20px; } label { display:block; color:var(--muted); font-size:12px; font-weight:700; margin-bottom:6px; } .field-full { grid-column:1/-1; }
+    .result-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin:18px 0; } .metric { background:#f8fafc; border:1px solid #e7edf5; border-radius:11px; padding:13px; } .metric .label { color:var(--muted); font-size:12px; font-weight:700; } .metric strong { display:block; font-size:22px; letter-spacing:-.03em; margin-top:3px; }
+    .wide { grid-column:1/-1; } .status { border-radius:10px; padding:12px 14px; font-weight:700; font-size:13px; margin-top:12px; } .status.neutral { color:#344054; background:#f2f4f7; } .status.good { color:var(--good); background:#ecfdf3; } .status.warn { color:var(--warn); background:#fffaeb; } .status.bad { color:var(--danger); background:#fef3f2; }
+    .formula { background:var(--soft); border:1px solid #bfdbfe; border-radius:10px; padding:13px 14px; margin-top:18px; font-size:13px; color:#1e40af; } .formula b { display:block; margin-bottom:3px; }
+    .legend { margin-top:18px; padding-top:17px; border-top:1px solid var(--line); color:var(--muted); font-size:12px; } .legend div { margin-top:6px; }
+    @media (max-width:850px) { header { flex-direction:column; } .actions { justify-content:flex-start; } .layout { grid-template-columns:1fr; } }
+    @media (max-width:500px) { .shell { padding:24px 12px 40px; } .card { padding:16px; } .settings { grid-template-columns:1fr; } .field-full { grid-column:auto; } }
+    @media print { body { background:#fff; } .shell { max-width:none; padding:0; } .actions, .remove, #addRow, .hint { display:none; } .card { box-shadow:none; } .layout { display:block; } .results { margin-top:20px; } }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <header>
+      <div><div class="eyebrow">Engineering utility</div><h1>Tolerance stack calculator</h1><p>Analyze a linear stack using worst-case and statistical RSS methods.</p></div>
+      <div class="actions"><button class="secondary" id="sample">Load example</button><button class="ghost" id="print">Print / PDF</button></div>
+    </header>
+
+    <div class="layout">
+      <section class="card">
+        <div class="card-head"><div><h2>Stack contributors</h2><p>Enter each dimension and choose its direction in the stack.</p></div><button class="primary" id="addRow">+ Add contributor</button></div>
+        <div class="table-wrap"><table><thead><tr><th style="width:29%">Description</th><th>Nominal</th><th>Tolerance ±</th><th>Direction</th><th>Contribution</th><th></th></tr></thead><tbody id="rows"></tbody></table></div>
+        <div class="hint">Use the direction column to subtract a dimension (for example, a gap made from a housing minus a pin). Values must be non-negative.</div>
+        <div class="settings">
+          <div><label for="units">Units</label><select id="units"><option>mm</option><option>in</option><option>µm</option><option>mil</option></select></div>
+          <div><label for="decimals">Decimal places</label><select id="decimals"><option value="0">0</option><option value="1">1</option><option value="2" selected>2</option><option value="3">3</option><option value="4">4</option></select></div>
+          <div class="field-full"><label for="target">Target / nominal requirement (optional)</label><input id="target" type="number" step="any" placeholder="e.g. 25.00"></div>
+        </div>
+      </section>
+
+      <aside class="card results">
+        <div class="card-head"><div><h2>Results</h2><p>Calculated from the contributors above.</p></div></div>
+        <div class="result-grid">
+          <div class="metric"><div class="label">Nominal stack</div><strong id="nominal">—</strong></div>
+          <div class="metric"><div class="label">Worst-case range</div><strong id="wcRange">—</strong></div>
+          <div class="metric"><div class="label">Worst-case min</div><strong id="wcMin">—</strong></div>
+          <div class="metric"><div class="label">Worst-case max</div><strong id="wcMax">—</strong></div>
+          <div class="metric wide"><div class="label">RSS (statistical) ±</div><strong id="rss">—</strong></div>
+        </div>
+        <div id="status" class="status neutral">Add contributors to calculate the stack.</div>
+        <div class="formula"><b>Methods used</b>Worst case: nominal ± the sum of all absolute tolerances. RSS: ±√(Σ tolerance²), assuming independent contributors.</div>
+        <div class="legend"><div>✓ Worst-case bounds protect against every tolerance combination.</div><div>ⓘ RSS is a statistical estimate and should only be used when contributors are independent and normally distributed.</div></div>
+      </aside>
+    </div>
+  </main>
+  <script>
+    const initial = [
+      { name: 'Housing length', nominal: 50, tol: 0.20, dir: 1 },
+      { name: 'Insert length', nominal: 24, tol: 0.10, dir: -1 },
+      { name: 'Washer thickness', nominal: 2, tol: 0.05, dir: -1 }
+    ];
+    let data = initial.map(x => ({ ...x }));
+    const rows = document.querySelector('#rows');
+    const $ = id => document.getElementById(id);
+    function esc(value) { return String(value).replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c])); }
+    function render() {
+      rows.innerHTML = data.map((item, i) => `<tr>
+        <td><input aria-label="Description ${i + 1}" data-i="${i}" data-key="name" value="${esc(item.name)}" placeholder="Dimension"></td>
+        <td><input aria-label="Nominal ${i + 1}" data-i="${i}" data-key="nominal" type="number" step="any" min="0" value="${item.nominal}"></td>
+        <td><input aria-label="Tolerance ${i + 1}" data-i="${i}" data-key="tol" type="number" step="any" min="0" value="${item.tol}"></td>
+        <td><select aria-label="Direction ${i + 1}" data-i="${i}" data-key="dir"><option value="1" ${item.dir === 1 ? 'selected' : ''}>+ Add</option><option value="-1" ${item.dir === -1 ? 'selected' : ''}>− Subtract</option></select></td>
+        <td id="contribution-${i}">—</td><td><button class="remove" data-remove="${i}" aria-label="Remove contributor ${i + 1}">Remove</button></td>
+      </tr>`).join('');
+      rows.querySelectorAll('[data-key]').forEach(el => el.addEventListener('input', update));
+      rows.querySelectorAll('[data-remove]').forEach(el => el.addEventListener('click', () => { if (data.length > 1) { data.splice(Number(el.dataset.remove), 1); render(); calculate(); } }));
+      calculate();
+    }
+    function update(e) { const el = e.target, i = Number(el.dataset.i), key = el.dataset.key; data[i][key] = key === 'name' ? el.value : Number(el.value) || 0; calculate(); }
+    function fmt(n) { const places = Number($('decimals').value); return Number.isFinite(n) ? n.toFixed(places) + ' ' + $('units').value : '—'; }
+    function calculate() {
+      const valid = data.filter(x => Number.isFinite(x.nominal) && Number.isFinite(x.tol));
+      const nominal = valid.reduce((sum, x) => sum + x.nominal * x.dir, 0);
+      const tolerance = valid.reduce((sum, x) => sum + Math.abs(x.tol), 0);
+      const rss = Math.sqrt(valid.reduce((sum, x) => sum + x.tol ** 2, 0));
+      $('nominal').textContent = fmt(nominal); $('wcRange').textContent = '± ' + fmt(tolerance); $('wcMin').textContent = fmt(nominal - tolerance); $('wcMax').textContent = fmt(nominal + tolerance); $('rss').textContent = '± ' + fmt(rss);
+      valid.forEach((x, i) => { const cell = $(`contribution-${i}`); if (cell) cell.textContent = (x.nominal * x.dir).toFixed(Number($('decimals').value)) + ' ' + $('units').value; });
+      const target = Number($('target').value); const status = $('status'); status.className = 'status neutral';
+      if (!valid.length) { status.textContent = 'Add contributors to calculate the stack.'; return; }
+      if (Number.isFinite(target)) { const error = nominal - target; status.className = Math.abs(error) <= tolerance ? 'status good' : 'status bad'; status.textContent = Math.abs(error) <= tolerance ? `Target is within the worst-case stack (nominal error ${fmt(error)}).` : `Target is outside the worst-case stack (nominal error ${fmt(error)}).`; }
+      else { status.textContent = `${valid.length} contributor${valid.length === 1 ? '' : 's'} included in the calculation.`; }
+    }
+    $('addRow').addEventListener('click', () => { data.push({ name: `Dimension ${data.length + 1}`, nominal: 0, tol: 0, dir: 1 }); render(); const last = rows.querySelector('tr:last-child input'); last?.focus(); });
+    $('sample').addEventListener('click', () => { data = initial.map(x => ({ ...x })); $('target').value = ''; render(); });
+    $('print').addEventListener('click', () => window.print());
+    ['units', 'decimals', 'target'].forEach(id => $(id).addEventListener('input', calculate));
+    render();
+  </script>
+</body>
+</html>
