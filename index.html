@@ -3,13 +3,14 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Tolerance stack calculator with worst-case, RSS, CSV import/export, history, variation chart, grouped assembly stages, pass/fail summary, and printable review sheets.">
+  <meta name="description" content="Tolerance stack calculator with worst-case, RSS, CSV import/export, history, variation chart, grouped assembly stages, pass/fail summary, and printable design review sheets.">
   <title>Tolerance Stack Calculator</title>
   <style>
     :root {
       --bg:#f4f7fb; --panel:#fff; --ink:#172033; --muted:#667085; --line:#d9e1ec; --brand:#2563eb; --brand-dark:#1d4ed8;
-      --soft:#eff6ff; --good:#087443; --warn:#b54708; --danger:#b42318; --shadow:0 12px 35px rgba(28,45,75,.08);
+      --soft:#eff6ff; --good:#087443; --warn:#b54708; --danger:#b42318; --shadow:0 14px 36px rgba(28,45,75,.08);
       --chart-band:#dbeafe; --chart-band-strong:#93c5fd; --chart-line:#1e3a8a; --light:#f8fafc;
+      --badge:#edf6ff; --badge-text:#1d4ed8;
     }
     * { box-sizing:border-box; }
     html, body { margin:0; min-height:100vh; }
@@ -23,7 +24,10 @@
     h2 { margin:0; font-size:19px; letter-spacing:-0.02em; }
     h3 { margin:0; font-size:15px; }
     p { margin:0; color:var(--muted); }
-    .eyebrow { color:var(--brand); font-weight:800; text-transform:uppercase; letter-spacing:.12em; font-size:11px; margin-bottom:7px; }
+    .eyebrow {
+      display:inline-block; color:var(--badge-text); background:var(--badge); border:1px solid #cfe4ff; border-radius:999px;
+      padding:6px 10px; font-weight:800; text-transform:uppercase; letter-spacing:.12em; font-size:10px; margin-bottom:7px;
+    }
     .toolbar { display:flex; flex-wrap:wrap; gap:10px; justify-content:flex-end; }
     .toolbar > *, .toolbar label { display:inline-flex; align-items:center; }
     button, .file-picker { border:0; border-radius:9px; padding:10px 14px; cursor:pointer; font:inherit; font-weight:700; transition:.15s ease; text-decoration:none; }
@@ -35,7 +39,7 @@
     .file-picker { position:relative; overflow:hidden; color:var(--brand-dark); background:#dbeafe; }
     .file-picker input { position:absolute; inset:0; opacity:0; cursor:pointer; }
     .layout { display:grid; grid-template-columns:minmax(0,1.5fr) minmax(330px,.9fr); gap:20px; align-items:start; }
-    .card { background:var(--panel); border:1px solid #e5eaf2; border-radius:16px; box-shadow:var(--shadow); padding:22px; }
+    .card { background:var(--panel); border:1px solid #e5eaf2; border-radius:18px; box-shadow:var(--shadow); padding:22px; }
     .card-head { display:flex; align-items:center; justify-content:space-between; gap:15px; margin-bottom:18px; }
     .card-head p { font-size:13px; margin-top:3px; }
     .table-wrap { overflow:auto; border:1px solid var(--line); border-radius:11px; }
@@ -67,7 +71,7 @@
     .formula b { display:block; margin-bottom:3px; }
     .summary-panel { margin-top:18px; border:1px solid var(--line); border-radius:12px; background:#f8fafc; padding:14px; }
     .summary-panel h3 { margin-bottom:10px; }
-    .summary-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
+    .summary-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; }
     .summary-box { background:#fff; border:1px solid #e7edf5; border-radius:10px; padding:10px 12px; }
     .summary-box span { display:block; color:var(--muted); font-size:11px; text-transform:uppercase; letter-spacing:.08em; font-weight:700; }
     .summary-box strong { display:block; margin-top:4px; font-size:19px; letter-spacing:-.03em; }
@@ -128,7 +132,7 @@
         <button class="primary" id="saveSnapshot">Save snapshot</button>
         <button class="secondary" id="exportCsv">Export CSV</button>
         <label class="file-picker" for="importCsv">Import CSV<input id="importCsv" type="file" accept=".csv,text/csv"></label>
-        <button class="ghost" id="printReview">Print review sheet</button>
+        <button class="ghost" id="printReview">Save as PDF</button>
       </div>
     </header>
 
@@ -230,8 +234,10 @@
           <div class="summary-grid">
             <div class="summary-box"><span>Design status</span><strong id="designStatus">—</strong></div>
             <div class="summary-box"><span>Spec target</span><strong id="specTarget">—</strong></div>
+            <div class="summary-box"><span>Target margin %</span><strong id="targetMarginPercent">—</strong></div>
             <div class="summary-box"><span>Pass margin</span><strong id="passMargin">—</strong></div>
             <div class="summary-box"><span>Assembly mode</span><strong id="modeSummary">Linear</strong></div>
+            <div class="summary-box"><span>RSS / WC</span><strong id="rssRatio">—</strong></div>
           </div>
           <div id="groupSummary" class="groups"></div>
         </div>
@@ -247,6 +253,8 @@
             <div class="sheet-item">Worst-case ±<strong id="sheetWorstCase">—</strong></div>
             <div class="sheet-item">RSS ±<strong id="sheetRss">—</strong></div>
             <div class="sheet-item">Status<strong id="sheetStatus">—</strong></div>
+            <div class="sheet-item">Target margin %<strong id="sheetTargetMargin">—</strong></div>
+            <div class="sheet-item">Pass margin<strong id="sheetPassMargin">—</strong></div>
           </div>
           <table class="sheet-table">
             <thead>
@@ -488,10 +496,16 @@
 
     function updateReportSheet(summary) {
       const sheetBody = $('sheetBody');
+      const target = parseNumber($('target').value, NaN);
+      const targetGap = Number.isFinite(target) ? Math.abs(summary.nominal - target) : 0;
+      const targetPercent = Number.isFinite(target) && summary.totalTolerance > 0 ? Math.max(0, (1 - (targetGap / summary.totalTolerance)) * 100) : 0;
+
       $('sheetNominal').textContent = fmt(summary.nominal);
       $('sheetWorstCase').textContent = `± ${fmt(summary.totalTolerance)}`;
       $('sheetRss').textContent = `± ${fmt(summary.rss)}`;
       $('sheetStatus').textContent = $('designStatus').textContent;
+      $('sheetTargetMargin').textContent = Number.isFinite(target) ? `${targetPercent.toFixed(1)}%` : '—';
+      $('sheetPassMargin').textContent = Number.isFinite(target) ? fmt(Math.max(0, summary.totalTolerance - targetGap)) : '—';
 
       sheetBody.innerHTML = summary.valid.map(item => `
         <tr>
@@ -513,18 +527,21 @@
       const wcMin = nominal - totalTolerance;
       const wcMax = nominal + totalTolerance;
       const mode = $('assemblyMode').value;
-      const statusText = Number.isFinite(target) ? (Math.abs(nominal - target) <= totalTolerance ? 'PASS' : 'FAIL') : 'MONITOR';
+      const targetGap = Number.isFinite(target) ? Math.abs(nominal - target) : 0;
+      const targetPercent = Number.isFinite(target) && totalTolerance > 0 ? Math.max(0, (1 - (targetGap / totalTolerance)) * 100) : 0;
+      const designStatus = Number.isFinite(target) ? (Math.abs(nominal - target) <= totalTolerance ? 'PASS' : 'FAIL') : 'MONITOR';
 
       $('nominal').textContent = fmt(nominal);
       $('wcRange').textContent = `± ${fmt(totalTolerance)}`;
       $('wcMin').textContent = fmt(wcMin);
       $('wcMax').textContent = fmt(wcMax);
       $('rss').textContent = `± ${fmt(rss)}`;
-      $('designStatus').textContent = statusText;
+      $('designStatus').textContent = designStatus;
       $('specTarget').textContent = Number.isFinite(target) ? fmt(target) : '—';
-      $('passMargin').textContent = Number.isFinite(target) ? fmt(Math.abs(totalTolerance - Math.abs(nominal - target))) : '—';
+      $('targetMarginPercent').textContent = Number.isFinite(target) ? `${targetPercent.toFixed(1)}%` : '—';
+      $('passMargin').textContent = Number.isFinite(target) ? fmt(Math.max(0, totalTolerance - targetGap)) : '—';
       $('modeSummary').textContent = mode.charAt(0).toUpperCase() + mode.slice(1);
-      $('sheetStatus').textContent = statusText;
+      $('rssRatio').textContent = totalTolerance > 0 ? `${(rss / totalTolerance * 100).toFixed(1)}%` : '—';
 
       summary.valid.forEach((x, i) => {
         const cell = $(`contribution-${i}`);
@@ -536,7 +553,9 @@
         status.textContent = 'Add contributors to calculate the stack.';
         $('designStatus').textContent = '—';
         $('specTarget').textContent = '—';
+        $('targetMarginPercent').textContent = '—';
         $('passMargin').textContent = '—';
+        $('rssRatio').textContent = '—';
         updateChart(0, 0, 0, 0);
         renderGroups(new Map());
         updateReportSheet({ ...summary, nominal: 0, totalTolerance: 0, rss: 0 });
