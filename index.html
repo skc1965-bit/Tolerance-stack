@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Tolerance stack calculator with worst-case, RSS, CSV import/export, history, and variation chart.">
+  <meta name="description" content="Tolerance stack calculator with worst-case, RSS, CSV import/export, history, variation chart, grouped assembly stages, pass/fail summary, and printable review sheets.">
   <title>Tolerance Stack Calculator</title>
   <style>
     :root {
@@ -17,31 +17,29 @@
       font:15px/1.45 Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif; color:var(--ink);
       background:linear-gradient(135deg,#f8fbff 0%, var(--bg) 55%, #eef3fa 100%);
     }
-    .shell { max-width:1240px; margin:0 auto; padding:32px 20px 56px; }
+    .shell { max-width:1280px; margin:0 auto; padding:32px 20px 56px; }
     header { display:flex; flex-wrap:wrap; align-items:flex-start; justify-content:space-between; gap:20px; margin-bottom:24px; }
     h1 { margin:0 0 7px; font-size:clamp(27px,4vw,40px); letter-spacing:-0.045em; }
     h2 { margin:0; font-size:19px; letter-spacing:-0.02em; }
+    h3 { margin:0; font-size:15px; }
     p { margin:0; color:var(--muted); }
     .eyebrow { color:var(--brand); font-weight:800; text-transform:uppercase; letter-spacing:.12em; font-size:11px; margin-bottom:7px; }
     .toolbar { display:flex; flex-wrap:wrap; gap:10px; justify-content:flex-end; }
     .toolbar > *, .toolbar label { display:inline-flex; align-items:center; }
-    button, .file-picker, .chip {
-      border:0; border-radius:9px; padding:10px 14px; cursor:pointer; font:inherit; font-weight:700; transition:.15s ease; text-decoration:none;
-    }
+    button, .file-picker { border:0; border-radius:9px; padding:10px 14px; cursor:pointer; font:inherit; font-weight:700; transition:.15s ease; text-decoration:none; }
     button:hover, .file-picker:hover { transform:translateY(-1px); }
     .primary { color:#fff; background:var(--brand); box-shadow:0 5px 12px #2563eb2b; }
     .primary:hover { background:var(--brand-dark); }
     .secondary { color:var(--brand-dark); background:#dbeafe; }
     .ghost { color:var(--muted); background:transparent; border:1px solid var(--line); }
-    .danger { color:var(--danger); background:#fff1f2; }
     .file-picker { position:relative; overflow:hidden; color:var(--brand-dark); background:#dbeafe; }
     .file-picker input { position:absolute; inset:0; opacity:0; cursor:pointer; }
-    .layout { display:grid; grid-template-columns:minmax(0,1.55fr) minmax(330px,.85fr); gap:20px; align-items:start; }
+    .layout { display:grid; grid-template-columns:minmax(0,1.5fr) minmax(330px,.9fr); gap:20px; align-items:start; }
     .card { background:var(--panel); border:1px solid #e5eaf2; border-radius:16px; box-shadow:var(--shadow); padding:22px; }
     .card-head { display:flex; align-items:center; justify-content:space-between; gap:15px; margin-bottom:18px; }
     .card-head p { font-size:13px; margin-top:3px; }
     .table-wrap { overflow:auto; border:1px solid var(--line); border-radius:11px; }
-    table { width:100%; border-collapse:collapse; min-width:760px; }
+    table { width:100%; border-collapse:collapse; min-width:820px; }
     th { background:#f8fafc; color:var(--muted); font-size:11px; letter-spacing:.07em; text-transform:uppercase; text-align:left; padding:11px 12px; white-space:nowrap; }
     td { border-top:1px solid var(--line); padding:9px 8px; }
     td:first-child, th:first-child { padding-left:12px; }
@@ -67,8 +65,26 @@
     .status.bad { color:var(--danger); background:#fef3f2; }
     .formula { background:var(--soft); border:1px solid #bfdbfe; border-radius:10px; padding:13px 14px; margin-top:18px; font-size:13px; color:#1e40af; }
     .formula b { display:block; margin-bottom:3px; }
+    .summary-panel { margin-top:18px; border:1px solid var(--line); border-radius:12px; background:#f8fafc; padding:14px; }
+    .summary-panel h3 { margin-bottom:10px; }
+    .summary-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
+    .summary-box { background:#fff; border:1px solid #e7edf5; border-radius:10px; padding:10px 12px; }
+    .summary-box span { display:block; color:var(--muted); font-size:11px; text-transform:uppercase; letter-spacing:.08em; font-weight:700; }
+    .summary-box strong { display:block; margin-top:4px; font-size:19px; letter-spacing:-.03em; }
+    .groups { margin-top:14px; display:flex; flex-direction:column; gap:8px; }
+    .group { background:#fff; border:1px solid var(--line); border-radius:10px; padding:9px 10px; }
+    .group-title { display:flex; justify-content:space-between; gap:8px; align-items:center; font-weight:700; font-size:12px; color:var(--ink); }
+    .group ul { margin:6px 0 0; padding-left:18px; color:var(--muted); font-size:12px; }
     .chart-box { margin-top:16px; border:1px solid var(--line); border-radius:12px; background:linear-gradient(180deg,#f8fbff,#eef4ff); padding:12px; }
     canvas { display:block; width:100%; height:220px; border-radius:8px; background:linear-gradient(180deg,#ffffff,#f8fbff); }
+    .report-sheet { margin-top:18px; border:1px dashed var(--line); border-radius:12px; background:linear-gradient(180deg,#ffffff,#f8fbff); padding:16px; }
+    .report-sheet h3 { margin-bottom:10px; }
+    .sheet-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
+    .sheet-item { border:1px solid var(--line); border-radius:8px; background:#fff; padding:8px 10px; font-size:12px; }
+    .sheet-item strong { display:block; font-size:15px; margin-top:2px; }
+    .sheet-table { width:100%; border-collapse:collapse; margin-top:12px; }
+    .sheet-table th, .sheet-table td { border:1px solid var(--line); padding:7px 8px; font-size:12px; }
+    .sheet-table th { background:#f8fafc; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); }
     .legend { margin-top:16px; padding-top:16px; border-top:1px solid var(--line); color:var(--muted); font-size:12px; }
     .legend div { margin-top:6px; }
     .history { margin-top:18px; border-top:1px solid var(--line); padding-top:16px; }
@@ -76,9 +92,7 @@
     .history-list { display:flex; flex-direction:column; gap:8px; }
     .snapshot { border:1px solid var(--line); background:#f8fafc; border-radius:10px; padding:10px 11px; }
     .snapshot button { width:100%; text-align:left; background:transparent; color:var(--ink); padding:0; border:0; font:inherit; font-weight:700; cursor:pointer; }
-    .snapshot small { display:block; color:var(--muted); margin-top:3px; }
     .snapshot .meta { font-size:12px; color:var(--muted); margin-top:4px; }
-    .csv-panel { margin-top:13px; }
     @media (max-width:920px) {
       .layout { grid-template-columns:1fr; }
       header { flex-direction:column; }
@@ -87,15 +101,17 @@
     @media (max-width:560px) {
       .shell { padding:24px 12px 40px; }
       .card { padding:16px; }
-      .settings, .result-grid { grid-template-columns:1fr; }
+      .settings, .result-grid, .summary-grid, .sheet-grid { grid-template-columns:1fr; }
       .field-full { grid-column:auto; }
     }
     @media print {
       body { background:#fff; }
       .shell { max-width:none; padding:0; }
-      .toolbar, .remove, #addRow, .history, .file-picker { display:none; }
-      .card { box-shadow:none; }
+      .toolbar, .card-head .primary, .remove, #addRow, .history, .file-picker { display:none !important; }
       .layout { display:block; }
+      .card { box-shadow:none; border-color:#dfe7f3; }
+      .result-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+      .report-sheet { page-break-inside:avoid; }
     }
   </style>
 </head>
@@ -112,7 +128,7 @@
         <button class="primary" id="saveSnapshot">Save snapshot</button>
         <button class="secondary" id="exportCsv">Export CSV</button>
         <label class="file-picker" for="importCsv">Import CSV<input id="importCsv" type="file" accept=".csv,text/csv"></label>
-        <button class="ghost" id="print">Print / PDF</button>
+        <button class="ghost" id="printReview">Print review sheet</button>
       </div>
     </header>
 
@@ -130,7 +146,8 @@
           <table>
             <thead>
               <tr>
-                <th style="width:24%">Description</th>
+                <th style="width:22%">Description</th>
+                <th style="width:15%">Assembly step</th>
                 <th>Nominal</th>
                 <th>Tolerance ±</th>
                 <th>Type</th>
@@ -143,7 +160,7 @@
           </table>
         </div>
 
-        <div class="hint">Use direction to subtract a dimension. For diameter-based features, a tolerance is treated as a diametral variation. For angular terms, the stated tolerance is interpreted as a direct angular value.</div>
+        <div class="hint">Use direction to subtract a dimension. For diameter-based features, a tolerance is treated as a diametral variation. For angular terms, the stated tolerance is interpreted as the direct angular value.</div>
 
         <div class="settings">
           <div>
@@ -208,14 +225,48 @@
           Worst-case: nominal ± Σ|tolerance|. RSS: ±√(Σ tolerance²), multiplied by the confidence factor for a design-adjusted estimate.
         </div>
 
+        <div class="summary-panel">
+          <h3>Stack summary</h3>
+          <div class="summary-grid">
+            <div class="summary-box"><span>Design status</span><strong id="designStatus">—</strong></div>
+            <div class="summary-box"><span>Spec target</span><strong id="specTarget">—</strong></div>
+            <div class="summary-box"><span>Pass margin</span><strong id="passMargin">—</strong></div>
+            <div class="summary-box"><span>Assembly mode</span><strong id="modeSummary">Linear</strong></div>
+          </div>
+          <div id="groupSummary" class="groups"></div>
+        </div>
+
         <div class="chart-box">
           <canvas id="variationChart" width="480" height="220"></canvas>
+        </div>
+
+        <div id="reportSheet" class="report-sheet">
+          <h3>Design review sheet</h3>
+          <div class="sheet-grid">
+            <div class="sheet-item">Nominal stack<strong id="sheetNominal">—</strong></div>
+            <div class="sheet-item">Worst-case ±<strong id="sheetWorstCase">—</strong></div>
+            <div class="sheet-item">RSS ±<strong id="sheetRss">—</strong></div>
+            <div class="sheet-item">Status<strong id="sheetStatus">—</strong></div>
+          </div>
+          <table class="sheet-table">
+            <thead>
+              <tr>
+                <th>Step</th>
+                <th>Desc.</th>
+                <th>Nominal</th>
+                <th>Tol ±</th>
+                <th>Type</th>
+                <th>Dir</th>
+              </tr>
+            </thead>
+            <tbody id="sheetBody"></tbody>
+          </table>
         </div>
 
         <div class="legend">
           <div>✓ Worst-case bounds protect against every tolerance combination.</div>
           <div>ⓘ RSS is a statistical estimate and should only be used for independent contributors.</div>
-          <div>⚙️ Type options include linear, diameter, gap, and angular geometry.</div>
+          <div>⚙️ Grouping by assembly step makes it easier to review sub-assemblies and final fits.</div>
         </div>
 
         <div class="history">
@@ -228,9 +279,9 @@
 
   <script>
     const initial = [
-      { name: 'Housing length', nominal: 50, tol: 0.20, dir: 1, type: 'linear' },
-      { name: 'Insert length', nominal: 24, tol: 0.10, dir: -1, type: 'linear' },
-      { name: 'Washer thickness', nominal: 2, tol: 0.05, dir: -1, type: 'linear' }
+      { name: 'Housing length', step: 'Main housing', nominal: 50, tol: 0.20, dir: 1, type: 'linear' },
+      { name: 'Insert length', step: 'Sub-assembly', nominal: 24, tol: 0.10, dir: -1, type: 'linear' },
+      { name: 'Washer thickness', step: 'Final fit', nominal: 2, tol: 0.05, dir: -1, type: 'linear' }
     ];
 
     let data = initial.map(x => ({ ...x }));
@@ -250,21 +301,20 @@
     function typeEffect(item) {
       const tol = parseNumber(item.tol, 0);
       switch (item.type || 'linear') {
-        case 'diameter':
-          return { tol: tol * 2, note: 'diameter' };
-        case 'gap':
-          return { tol: tol, note: 'gap' };
-        case 'angular':
-          return { tol: tol, note: 'angular' };
-        default:
-          return { tol: tol, note: 'linear' };
+        case 'diameter': return { tol: tol * 2, note: 'diameter' };
+        case 'gap': return { tol: tol, note: 'gap' };
+        case 'angular': return { tol: tol, note: 'angular' };
+        default: return { tol: tol, note: 'linear' };
       }
     }
+
+    function getStepName(item, idx) { return (item.step && String(item.step).trim()) || `Step ${idx + 1}`; }
 
     function render() {
       rows.innerHTML = data.map((item, i) => `
         <tr>
           <td><input aria-label="Description ${i + 1}" data-i="${i}" data-key="name" value="${esc(item.name)}" placeholder="Dimension"></td>
+          <td><input aria-label="Assembly step ${i + 1}" data-i="${i}" data-key="step" value="${esc(getStepName(item, i))}" placeholder="Main housing"></td>
           <td><input aria-label="Nominal ${i + 1}" data-i="${i}" data-key="nominal" type="number" step="any" value="${Number(item.nominal ?? 0)}"></td>
           <td><input aria-label="Tolerance ${i + 1}" data-i="${i}" data-key="tol" type="number" step="any" min="0" value="${Number(item.tol ?? 0)}"></td>
           <td>
@@ -303,13 +353,31 @@
       const i = Number(el.dataset.i);
       const key = el.dataset.key;
       if (!data[i]) return;
-      data[i][key] = key === 'name' ? el.value : (key === 'dir' ? Number(el.value) : (key === 'type' ? el.value : Number(el.value) || 0));
+      if (key === 'name' || key === 'step') {
+        data[i][key] = el.value || (key === 'step' ? `Step ${i + 1}` : '');
+      } else if (key === 'dir') {
+        data[i][key] = Number(el.value);
+      } else if (key === 'type') {
+        data[i][key] = el.value;
+      } else {
+        data[i][key] = Number(el.value) || 0;
+      }
       calculate();
     }
 
     function fmt(n) {
       const places = Number($('decimals').value);
       return Number.isFinite(n) ? `${n.toFixed(places)} ${$('units').value}` : '—';
+    }
+
+    function getGroupedSummary(valid) {
+      const groups = new Map();
+      valid.forEach(item => {
+        const step = getStepName(item, valid.indexOf(item));
+        if (!groups.has(step)) groups.set(step, []);
+        groups.get(step).push(item);
+      });
+      return groups;
     }
 
     function metricSummary() {
@@ -322,7 +390,7 @@
       const confidence = parseNumber($('confidence').value, 1);
       const adjustedRSS = rss * confidence;
 
-      return { valid, transformed, nominal, totalTolerance, rss: adjustedRSS };
+      return { valid, transformed, nominal, totalTolerance, rss: adjustedRSS, groups: getGroupedSummary(valid) };
     }
 
     function updateChart(chartNominal, chartMin, chartMax, rss) {
@@ -354,19 +422,17 @@
 
       const mapX = value => pad.left + ((value - minValue) / range) * innerW;
       const mapY = z => pad.top + ((maxValue - z) / range) * innerH;
-
       const bandMin = chartNominal - chartMax;
       const bandMax = chartNominal + chartMax;
       const rssMin = chartNominal - rss;
       const rssMax = chartNominal + rss;
-
       const bandLeft = mapX(Math.min(bandMin, rssMin));
       const bandRight = mapX(Math.max(bandMax, rssMax));
-      const bandYTop = mapY(Math.max(bandMax, rssMax));
-      const bandYBottom = mapY(Math.min(bandMin, rssMin));
+      const bandTop = mapY(Math.max(bandMax, rssMax));
+      const bandBottom = mapY(Math.min(bandMin, rssMin));
 
       ctx.fillStyle = 'rgba(147, 197, 253, 0.26)';
-      ctx.fillRect(bandLeft, bandYTop, Math.max(1, bandRight - bandLeft), Math.max(1, bandYBottom - bandYTop));
+      ctx.fillRect(bandLeft, bandTop, Math.max(1, bandRight - bandLeft), Math.max(1, bandBottom - bandTop));
 
       ctx.fillStyle = 'rgba(96, 165, 250, 0.35)';
       ctx.fillRect(mapX(rssMin), mapY(rssMax), Math.max(1, mapX(rssMax) - mapX(rssMin)), Math.max(1, mapY(rssMin) - mapY(rssMax)));
@@ -400,6 +466,45 @@
       ctx.fillText('RSS', mapX(rssMin) - 12, pad.top + 24);
     }
 
+    function renderGroups(groups) {
+      const container = $('groupSummary');
+      if (!groups || groups.size === 0) {
+        container.innerHTML = '<div class="group"><div class="group-title">No contributors</div></div>';
+        return;
+      }
+
+      const groupHtml = Array.from(groups.entries()).map(([step, items]) => {
+        const list = items.map(item => `${item.name}: ${fmt(item.nominal * item.dir)} (${item.type || 'linear'})`).join('</li><li>');
+        return `
+          <div class="group">
+            <div class="group-title"><span>${esc(step)}</span><span>${items.length} item${items.length === 1 ? '' : 's'}</span></div>
+            <ul><li>${list}</li></ul>
+          </div>
+        `;
+      }).join('');
+
+      container.innerHTML = groupHtml;
+    }
+
+    function updateReportSheet(summary) {
+      const sheetBody = $('sheetBody');
+      $('sheetNominal').textContent = fmt(summary.nominal);
+      $('sheetWorstCase').textContent = `± ${fmt(summary.totalTolerance)}`;
+      $('sheetRss').textContent = `± ${fmt(summary.rss)}`;
+      $('sheetStatus').textContent = $('designStatus').textContent;
+
+      sheetBody.innerHTML = summary.valid.map(item => `
+        <tr>
+          <td>${esc(getStepName(item, summary.valid.indexOf(item)))}</td>
+          <td>${esc(item.name || 'Dimension')}</td>
+          <td>${fmt(item.nominal)}</td>
+          <td>${fmt(item.tol)}</td>
+          <td>${(item.type || 'linear')}</td>
+          <td>${item.dir === -1 ? '− Subtract' : '+ Add'}</td>
+        </tr>
+      `).join('');
+    }
+
     function calculate() {
       const summary = metricSummary();
       const { nominal, totalTolerance, rss } = summary;
@@ -407,25 +512,34 @@
       const status = $('status');
       const wcMin = nominal - totalTolerance;
       const wcMax = nominal + totalTolerance;
+      const mode = $('assemblyMode').value;
+      const statusText = Number.isFinite(target) ? (Math.abs(nominal - target) <= totalTolerance ? 'PASS' : 'FAIL') : 'MONITOR';
 
       $('nominal').textContent = fmt(nominal);
       $('wcRange').textContent = `± ${fmt(totalTolerance)}`;
       $('wcMin').textContent = fmt(wcMin);
       $('wcMax').textContent = fmt(wcMax);
       $('rss').textContent = `± ${fmt(rss)}`;
+      $('designStatus').textContent = statusText;
+      $('specTarget').textContent = Number.isFinite(target) ? fmt(target) : '—';
+      $('passMargin').textContent = Number.isFinite(target) ? fmt(Math.abs(totalTolerance - Math.abs(nominal - target))) : '—';
+      $('modeSummary').textContent = mode.charAt(0).toUpperCase() + mode.slice(1);
+      $('sheetStatus').textContent = statusText;
 
       summary.valid.forEach((x, i) => {
         const cell = $(`contribution-${i}`);
-        if (cell) {
-          const signed = x.nominal * x.dir;
-          cell.textContent = `${fmt(signed)}`;
-        }
+        if (cell) cell.textContent = `${fmt(x.nominal * x.dir)}`;
       });
 
       status.className = 'status neutral';
       if (!summary.valid.length) {
         status.textContent = 'Add contributors to calculate the stack.';
+        $('designStatus').textContent = '—';
+        $('specTarget').textContent = '—';
+        $('passMargin').textContent = '—';
         updateChart(0, 0, 0, 0);
+        renderGroups(new Map());
+        updateReportSheet({ ...summary, nominal: 0, totalTolerance: 0, rss: 0 });
         return;
       }
 
@@ -440,6 +554,8 @@
         status.textContent = `${summary.valid.length} contributor${summary.valid.length === 1 ? '' : 's'} included in the stack calculation.`;
       }
 
+      renderGroups(summary.groups);
+      updateReportSheet(summary);
       updateChart(nominal, wcMin, wcMax, rss);
     }
 
@@ -462,7 +578,7 @@
     function renderHistory() {
       const container = $('historyList');
       if (!history.length) {
-        container.innerHTML = '<div class="snapshot"><button type="button">No snapshots yet</button><small>Save a configuration to compare design revisions.</small></div>';
+        container.innerHTML = '<div class="snapshot"><button type="button">No snapshots yet</button><div class="meta">Save a configuration to compare design revisions.</div></div>';
         return;
       }
 
@@ -478,18 +594,14 @@
           const snap = history.find(x => String(x.id) === btn.dataset.restore);
           if (!snap) return;
           $('target').value = Number.isFinite(snap.target) ? snap.target : '';
-          const values = [];
-          data.forEach((item, idx) => {
-            values.push({ name: item.name || `Dimension ${idx + 1}`, nominal: item.nominal, tol: item.tol, dir: item.dir, type: item.type || 'linear' });
-          });
           render();
         });
       });
     }
 
     function buildCsv() {
-      const header = ['name', 'nominal', 'tol', 'dir', 'type'];
-      const rowsCsv = data.map(item => [item.name, item.nominal, item.tol, item.dir, item.type || 'linear'].map(v => `"${String(v).replace(/"/g, '""')}"`).join(','));
+      const header = ['name', 'step', 'nominal', 'tol', 'dir', 'type'];
+      const rowsCsv = data.map(item => [item.name, getStepName(item, data.indexOf(item)), item.nominal, item.tol, item.dir, item.type || 'linear'].map(v => `"${String(v).replace(/"/g, '""')}"`).join(','));
       return [header.join(','), ...rowsCsv].join('\n');
     }
 
@@ -516,15 +628,16 @@
         const asRows = lines.slice(1).map(line => {
           const cells = line.match(/(?:,|^)(?:"(?:[^"]|"")*"|[^,]*)/g);
           return cells ? cells.map(cell => cell.replace(/^,/, '').replace(/^"|"$/g, '').replace(/""/g, '"')) : [];
-        }).filter(row => row.length >= 5 && row.some(x => x !== ''));
+        }).filter(row => row.length >= 6 && row.some(x => x !== ''));
 
         if (!asRows.length) return;
         data = asRows.map((row, idx) => ({
           name: row[0] || `Dimension ${idx + 1}`,
-          nominal: parseNumber(row[1], 0),
-          tol: parseNumber(row[2], 0),
-          dir: String(row[3]).trim() === '-1' ? -1 : 1,
-          type: ['linear', 'diameter', 'gap', 'angular'].includes(String(row[4]).trim().toLowerCase()) ? String(row[4]).trim().toLowerCase() : 'linear'
+          step: row[1] || `Step ${idx + 1}`,
+          nominal: parseNumber(row[2], 0),
+          tol: parseNumber(row[3], 0),
+          dir: String(row[4]).trim() === '-1' ? -1 : 1,
+          type: ['linear', 'diameter', 'gap', 'angular'].includes(String(row[5]).trim().toLowerCase()) ? String(row[5]).trim().toLowerCase() : 'linear'
         }));
         render();
       };
@@ -532,7 +645,7 @@
     }
 
     $('addRow').addEventListener('click', () => {
-      data.push({ name: `Dimension ${data.length + 1}`, nominal: 0, tol: 0, dir: 1, type: 'linear' });
+      data.push({ name: `Dimension ${data.length + 1}`, step: `Step ${data.length + 1}`, nominal: 0, tol: 0, dir: 1, type: 'linear' });
       render();
       const lastInput = rows.querySelector('tr:last-child input[data-key="name"]');
       lastInput?.focus();
@@ -548,9 +661,9 @@
 
     $('saveSnapshot').addEventListener('click', saveSnapshot);
     $('exportCsv').addEventListener('click', exportCsv);
-    $('print').addEventListener('click', () => window.print());
     $('importCsv').addEventListener('change', e => importCsv(e.target.files[0]));
-    $('assemblyMode').addEventListener('change', () => calculate());
+    $('printReview').addEventListener('click', () => window.print());
+    $('assemblyMode').addEventListener('change', calculate);
     ['units', 'decimals', 'target', 'confidence'].forEach(id => $(id).addEventListener('input', calculate));
 
     render();
